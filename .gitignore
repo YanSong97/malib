@@ -133,3 +133,6 @@ dmypy.json
 .idea
 _build
 logs
+
+# OS folder meta
+.DS_Store
