@@ -28,7 +28,7 @@ class DQNLoss(LossFunc):
 
         gradients = {
             "critic": {
-                name: param.detach().numpy()
+                name: param.detach().numpy() * self._params["lr"]
                 for name, param in self.policy.critic.named_parameters()
             },
         }
