@@ -21,7 +21,7 @@ device = torch.device("cuda" if USE_CUDA else "cpu")
 #######################
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = "6060"
-SERVER_PLAT = "windows"                 # windows linux
+SERVER_PLAT = "linux"                 # windows linux
 SCENARIO_NAME = "heli_anti_sub.scen"    # 直升机反潜想定
 SIMULATE_COMPRESSION = 4                #推演档位
 SYNCHRONOUS = True  # True同步, False异步
