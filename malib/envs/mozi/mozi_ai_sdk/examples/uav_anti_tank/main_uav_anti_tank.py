@@ -48,13 +48,17 @@ def main():
 
     # 开始的轮数
     epoch_file_path = "%s/epoch.txt" % etc.OUTPUT_PATH
-    start_epoch = read_start_epoch(epoch_file_path) # 目前已经训练的轮数
-
+    # start_epoch = read_start_epoch(epoch_file_path) # 目前已经训练的轮数
+    #
     # 开始步数
     step_file_path = "%s/step.txt" % etc.OUTPUT_PATH
-    start_step = read_start_step(step_file_path)
-    cur_step = start_step
-    print("start step: %s" % cur_step)
+    # start_step = read_start_step(step_file_path)
+    # cur_step = start_step
+    # print("start step: %s" % cur_step)
+
+    start_epoch = 0
+    start_step = 0
+    cur_step = 0
 
     # 创建智能体对象
     agent = AgentUavAntiTank(env, start_epoch)
@@ -76,6 +80,9 @@ def main():
 
                 # 环境执行动作，生成下一步的状态及回报值
                 state_new, reward_new = env.execute_action(action_new)
+                print("state: ", state_new)
+                print("reward: ", reward_new)
+                print("action: ", action_new)
 
                 # 根据推演结果，训练一次智能体
                 agent.train(

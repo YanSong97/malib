@@ -49,7 +49,7 @@ class AgentUavAntiTank(base_agent.BaseAgent):
         """
         重置
         """
-        self.trainer.save_model(self.episodes, etc.MODELS_PATH)  # 保存一下已经训练的轮数
+        # self.trainer.save_model(self.episodes, etc.MODELS_PATH)  # 保存一下已经训练的轮数
         self.episodes += 1
 
     def setup(self, state_space, action_space):
