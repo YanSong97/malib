@@ -69,7 +69,7 @@ class _MoZiEnv(ParallelEnv):
         obs_0, _ = self.real_env.reset()
         obs = {
             # aid: {"observation": obs_0[i]}
-            aid: {"observation": obs_0}  # single-agent env has only one obs
+            aid: {"observation": np.array(obs_0)}  # single-agent env has only one obs
             for i, aid in enumerate(self.agents)
         }
         return obs
@@ -126,7 +126,9 @@ class MoZiEnv(Environment):
 if __name__ == "__main__":
     env_config = {"scenario_configs": {"map_name": "uav_anti_tank"}, "env_id": "test"}
     env = MoZiEnv(**env_config)
-    print(env.possible_agents)
+    print("POSSIBLE AGENTS:", env.possible_agents)
+    print("OBSERVATION SPACES:", env.observation_spaces)
+    print("ACTION_SPACES:", env.action_spaces)
 
     respone = env.reset()
     obs = respone[Episode.CUR_OBS]
