@@ -34,11 +34,11 @@ if __name__ == "__main__":
             "config": {
                 "update_interval": 1,
                 "saving_interval": 10,
-                "batch_size": 1024,
+                "batch_size": 128,
                 "optimizer": "Adam",
-                "actor_lr": 0.01,
-                "critic_lr": 0.01,
-                "lr": 0.01,
+                "actor_lr": 0.001,
+                "critic_lr": 0.001,
+                "lr": 0.001,
                 "tau": 0.01,
                 "grad_norm_clipping": 0.5,
             },
@@ -46,23 +46,41 @@ if __name__ == "__main__":
         algorithms={
             "PPO": {
                 "name": "PPO",
+                "model_config": {
+                    "critic": {
+                        "network": "mlp",
+                        "layers": [
+                            {"units": 16, "activation": "ReLU"},
+                            {"units": 16, "activation": "ReLU"},
+                        ],
+                        "output": {
+                            "activation": False
+                        }
+                    },
+                    "actor": {
+                        "network": "mlp",
+                        "layers": [
+                            {"units": 16, "activation": "ReLU"},
+                            {"units": 16, "activation": "ReLU"},
+                        ],
+                        "output": {
+                            "activation": False
+                        }
+                    }
+                },
                 "custom_config": {
-                    "gamma": 1.0,
-                    "eps_min": 0,
-                    "eps_max": 1.0,
-                    "eps_decay": 100,
-                    "lr": 1e-2,
+                    "lr": 1e-3,
                 },
             }
         },
         rollout={
             "type": "async",
             "stopper": "simple_rollout",
-            "stopper_config": {"max_step": 10},
+            "stopper_config": {"max_step": 100},
             "metric_type": "simple",
             "fragment_length": 1000,
-            "num_episodes": 10,
-            "episode_seg": 10,
+            "num_episodes": 1,
+            "episode_seg": 1,
             "terminate": "any",
         },
         evaluation={"fragment_length": 100, "num_episodes": 100},
