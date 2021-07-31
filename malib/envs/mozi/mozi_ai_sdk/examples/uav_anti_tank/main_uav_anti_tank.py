@@ -29,7 +29,7 @@ from malib.envs.mozi.mozi_ai_sdk.rlmodel.ddpg import buffer
 from malib.envs.mozi.mozi_ai_sdk.examples.uav_anti_tank.env_uav_anti_tank import EnvUavAntiTank as Environment
 from malib.envs.mozi.mozi_ai_sdk.examples.uav_anti_tank import etc_uav_anti_tank as etc
 from malib.envs.mozi.mozi_ai_sdk.examples.uav_anti_tank.agent_uav_anti_tank import AgentUavAntiTank
-from malib.envs.mozi.mozi_ai_sdk.examples.uav_anti_tank.pic import show_pic
+from malib.envs.mozi.mozi_ai_sdk.examples.uav_anti_tank.pic import show_pic, write_final_reward
 #  设置墨子安装目录下bin目录为MOZIPATH，程序会自动启动墨子
 os.environ['MOZIPATH'] = 'D:\\mozi_4p\\mozi\\Mozi\\MoziServer\\bin'
 
@@ -73,6 +73,7 @@ def main():
             state_now, reward_now = env.reset()
             agent.reset()
 
+            final_reward = reward_now
             # 智能体作决策，产生动作，动作影响环境，智能体根据动作的效果进行训练优化
             for step in range(etc.MAX_STEPS):
                 # 智能体根据当前的状态及回报值，进行决策，生成下一步的动作
@@ -80,9 +81,6 @@ def main():
 
                 # 环境执行动作，生成下一步的状态及回报值
                 state_new, reward_new = env.execute_action(action_new)
-                print("state: ", state_new)
-                print("reward: ", reward_new)
-                print("action: ", action_new)
 
                 # 根据推演结果，训练一次智能体
                 agent.train(
@@ -97,6 +95,7 @@ def main():
                 # 更新状态、回报值
                 state_now = state_new
                 reward_now = reward_new
+                final_reward += reward_now
 
                 # 打印提示
                 print("%s：轮数:%s 决策步数:%s  Reward:%.2f" % (datetime.datetime.now(),_ep, step, reward_now))
@@ -106,6 +105,7 @@ def main():
                     break
                 if cur_step % 100 == 0:
                     show_pic()
+            write_final_reward(final_reward, _ep)
             write_start_epoch_file(epoch_file_path, str(_ep))
 
     except KeyboardInterrupt:

@@ -172,6 +172,6 @@ def show_loss_pic(loss_name="loss_critic"):
 def show_pic():
     # 画图
     if etc.SHOW_FIGURE:
-        #show_reward_pic()
-        show_loss_pic("loss_actor")
+        show_reward_pic()
+        # show_loss_pic("loss_actor")
         #show_loss_pic("loss_critic")
