@@ -91,6 +91,7 @@ class BaseRolloutWorker:
             mongo=settings.USE_MONGO_LOGGER,
             **kwargs["exp_cfg"],
         )
+        env.close()
 
     def get_status(self):
         return self._status

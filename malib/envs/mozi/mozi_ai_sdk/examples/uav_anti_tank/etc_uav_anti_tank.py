@@ -21,6 +21,8 @@ device = torch.device("cuda" if USE_CUDA else "cpu")
 #######################
 SERVER_IP = "127.0.0.1"     # 仿真服务器IP地址
 SERVER_PORT = "6060"        # 仿真服务器端口号
+PORT_2333 = "2333"        # 仿真服务器端口号
+PORT_3306 = "3306"        # 仿真服务器端口号
 SERVER_PLAT = "linux"     # windows linux
 SCENARIO_NAME = "uav_anti_tank.scen" # 想定名称
 SIMULATE_COMPRESSION = 4    #推演档位

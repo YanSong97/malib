@@ -15,7 +15,7 @@ if __name__ == "__main__":
     action_spaces = env.action_spaces
     print("ACTION SPACES:", action_spaces)
     print("OBSERVATION SPACES:", observation_spaces)
-
+    env.close()
     run(
         group="MoZi",
         name="simple_try",
@@ -79,7 +79,7 @@ if __name__ == "__main__":
             "stopper_config": {"max_step": 100},
             "metric_type": "simple",
             "fragment_length": 1000,
-            "num_episodes": 1,
+            "num_episodes": 1,  # parallel env num in each worker
             "episode_seg": 1,
             "terminate": "any",
         },

@@ -1,4 +1,6 @@
+import docker
 import numpy as np
+import socket
 
 from gym import spaces
 from pettingzoo import ParallelEnv
@@ -8,6 +10,7 @@ import malib.envs.mozi.mozi_ai_sdk.examples.uav_anti_tank.etc_uav_anti_tank as e
 from malib.envs import Environment
 from malib.utils.typing import Dict, AgentID, Any
 from malib.backend.datapool.offline_dataset_server import Episode
+from malib.envs.mozi.remote_handle_docker import _start_mozi_docker_linux, release_docker
 
 maps = {
     "uav_anti_tank": {
@@ -18,12 +21,42 @@ maps = {
 }
 
 
+def is_port_available(ip, port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.connect((ip, port))
+        s.shutdown(2)
+        return False
+    except Exception:
+        return True
+
+
 class _MoZiEnv(ParallelEnv):
 
     def __init__(self, **kwargs):
         super(_MoZiEnv, self).__init__()
         map_config = maps[kwargs["map_name"]]
         etc = map_config["etc"]
+
+        while not is_port_available(etc.SERVER_IP, int(etc.SERVER_PORT)):
+            port = np.random.randint(10000, 14000)
+            etc.SERVER_PORT = str(port)
+        print("SERVER_PORT: ", etc.SERVER_PORT)
+
+        while not is_port_available(etc.SERVER_IP, int(etc.PORT_2333)):
+            port = np.random.randint(14000, 17000)
+            etc.PORT_2333 = str(port)
+        print("PORT_2333: ", etc.PORT_2333)
+
+        while not is_port_available(etc.SERVER_IP, int(etc.PORT_3306)):
+            port = np.random.randint(17000, 20000)
+            etc.PORT_3306 = str(port)
+        print("PORT_3306: ", etc.PORT_3306)
+
+        client = docker.from_env()
+        self.docker_ip_port = _start_mozi_docker_linux(etc.SERVER_IP, client, etc.SERVER_PORT,
+                                                       etc.PORT_2333, etc.PORT_3306)
+
         self.real_env = map_config["env"](etc.SERVER_IP,
                                           etc.SERVER_PORT,
                                           etc.SCENARIO_NAME,
@@ -96,6 +129,10 @@ class _MoZiEnv(ParallelEnv):
             rew_dict,
             done_dict
         )
+
+    def close(self):
+        super().close()
+        release_docker(self.docker_ip_port)
 
 
 class MoZiEnv(Environment):
