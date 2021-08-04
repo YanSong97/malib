@@ -21,8 +21,6 @@ device = torch.device("cuda" if USE_CUDA else "cpu")
 #######################
 SERVER_IP = "127.0.0.1"     # 仿真服务器IP地址
 SERVER_PORT = "6060"        # 仿真服务器端口号
-PORT_2333 = "2333"        # 仿真服务器端口号
-PORT_3306 = "3306"        # 仿真服务器端口号
 SERVER_PLAT = "linux"     # windows linux
 SCENARIO_NAME = "uav_anti_tank.scen" # 想定名称
 SIMULATE_COMPRESSION = 4    #推演档位
@@ -42,7 +40,7 @@ task_end_point["longitude"] = 44.3777800928825
 # 2--local linux train mode
 # 3--remote windows evaluate mode
 # 4--local windows evaluate mode
-app_mode = 1
+app_mode = 2
 #######################
 MAX_EPISODES = 5000     # 一共训练多少轮
 MAX_BUFFER = 10000

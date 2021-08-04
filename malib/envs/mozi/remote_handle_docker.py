@@ -194,7 +194,7 @@ def generate_local_docker(ip, client, docker_num, sever_docker_info, remote_dock
             assert docker_num == 1
             docker_port = remote_docker_port
         else:
-            docker_port = get_local_free_port(ip)
+            docker_port = get_local_free_port()
         docker_info = _start_mozi_docker(ip, client, docker_port)
         
         sever_docker_info.append(docker_info)
@@ -242,53 +242,6 @@ def _start_mozi_docker(ip, client, docker_port):
     # except Exception:
     #     print('fail create mozi docker!')
     #     sys.exit(1)
-
-
-def _start_mozi_docker_linux(ip, client, docker_port, port2333='2333', port3306='3306'):
-    # noinspection PyBroadException
-    # try:
-    for _ in range(MAX_DOCKER_RETRIES):
-        for _ in range(MAX_DOCKER_RETRIES):
-            container = client.containers.create('mozi_internet_v16',
-                                                 command='/bin/bash',
-                                                 name=f'mozi_{ip}_{docker_port}',
-                                                 detach=True,
-                                                 tty=True,
-                                                 ports={'6060': docker_port,
-                                                        '2333': port2333,
-                                                        '3306': port3306},
-                                                 user='root')
-            container.start()
-            out = container.exec_run(cmd='sh -c "service mysql start && echo success"',
-                                     tty=True,
-                                     user='root',
-                                     detach=False)
-            print(out.output)
-            if 'started' in out.output.decode('utf-8'):
-                break
-            print(f'mozi_{ip}_{docker_port} mysql fail to start!')
-            container.stop()
-            container.remove()
-        print(f'mozi_{ip}_{docker_port} mysql was started success!')
-        container.exec_run(cmd='sh -c "mono /home/LinuxServer/bin/LinuxServer.exe --AiPort 6060"',
-                           tty=True,
-                           user='root',
-                           detach=True)
-        out2 = container.exec_run(cmd='sh -c "pgrep mono"',
-                                  tty=True,
-                                  user='root',
-                                  detach=False)
-        if out2.output != b'':
-            print(f'mozi_{ip}_{docker_port} mozi was started success!')
-            break
-        print(f'mozi_{ip}_{docker_port} mozi fail to start!')
-        container.stop()
-        container.remove()
-    return f'{ip}:{docker_port}'
-    # except Exception:
-    #     print('fail create mozi docker!')
-    #     sys.exit(1)
-
 
 def release_docker(docker_ip_port, password=None, path=None):
     docker_ip = docker_ip_port.split(":")[0]
@@ -407,7 +360,7 @@ def delete_docker(sever_docker_dict, password=None, path=None):
         print('fail ', e)
 
 
-def get_local_free_port(ip):
+def get_local_free_port():
     """ Get free port"""
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
         s.bind(('', 0))
