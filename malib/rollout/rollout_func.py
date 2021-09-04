@@ -19,6 +19,7 @@ import uuid
 import ray
 import collections
 import numpy as np
+import time
 
 from pettingzoo.utils.env import AECEnv
 
@@ -26,6 +27,7 @@ from malib import settings
 from malib.utils.logger import Log, Logger
 from malib.utils.typing import (
     AgentID,
+    BufferDescription,
     Dict,
     PolicyID,
     Union,
@@ -75,7 +77,7 @@ def sequential(
     fragment_length: int,
     max_step: int,
     behavior_policies: Dict[AgentID, PolicyID],
-    agent_episodes: Dict[AgentID, Episode],
+    buffer_description: BufferDescription,
     send_interval: int = 50,
     dataset_server: ray.ObjectRef = None,
 ):
@@ -83,8 +85,13 @@ def sequential(
 
     cnt = 0
 
-    if agent_episodes is not None:
-        agent_filters = list(agent_episodes.keys())
+    if buffer_description is not None:
+        agent_filters = buffer_description.agent_id
+        buffer_indices = None
+        while buffer_indices is not None:
+            buffer_indices = ray.get(dataset_server.requeste_producer_index.remote(buffer_description))
+            time.sleep(0.5)
+        buffer_description.indices = buffer_indices
     else:
         agent_filters = list(agent_interfaces.keys())
 
@@ -121,7 +128,7 @@ def sequential(
                 action = None
             env.step(action)
 
-            if dataset_server and aid in agent_episodes:
+            if dataset_server and aid in buffer_description.agent_id:
                 tmp_buffer[aid].append(
                     _TimeStep(
                         observation,
@@ -176,7 +183,7 @@ def sequential(
             actions = actions[:-1].copy()
             action_dists = action_dists[:-1].copy()
 
-            agent_episodes[player].insert(
+            buffer_description.data[player].insert(
                 **{
                     Episode.CUR_OBS: observations,
                     Episode.NEXT_OBS: next_observations,
@@ -188,9 +195,7 @@ def sequential(
                     Episode.NEXT_ACTION_MASK: next_action_masks,
                 }
             )
-        dataset_server.save.remote(agent_episodes, wait_for_ready=False)
-        for e in agent_episodes.values():
-            e.reset()
+        dataset_server.save.remote(buffer_description)
 
     results = {
         f"total_reward/{k}": v
@@ -280,7 +285,15 @@ def simultaneous(
         observations = next_observations
 
     if dataset_server:
-        dataset_server.save.remote(agent_episodes, wait_for_ready=True)
+        # request indices
+        agent_ids = list(agent_episodes.keys())
+        policy_ids = [behavior_policies[aid] for aid in agent_ids]
+        buffer_desc = BufferDescription(env.env_configs["env_id"], agent_ids, policy_ids, batch_size=sum(episode.size() for episode in agent_episodes.values()))
+        while buffer_indices is None:
+            buffer_indices = ray.get(dataset_server.request_producer_index.remote(buffer_desc))
+            time.sleep(0.5)
+        buffer_desc.indices = buffer_indices
+        dataset_server.save.remote(buffer_desc)
 
     results = _parse_episode_infos(env.epsiode_infos)
     return results, env.batched_step_cnt * len(env.possible_agents)
@@ -297,15 +310,6 @@ class Stepping:
     def __init__(
         self, exp_cfg: Dict[str, Any], env_desc: Dict[str, Any], dataset_server=None
     ):
-        # self.logger = get_logger(
-        #     log_level=settings.LOG_LEVEL,
-        #     log_dir=settings.LOG_DIR,
-        #     name=f"rolloutfunc_executor_{uuid.uuid1()}",
-        #     remote=settings.USE_REMOTE_LOGGER,
-        #     mongo=settings.USE_MONGO_LOGGER,
-        #     **exp_cfg,
-        # )
-
         # init environment here
         self.env_desc = env_desc
 

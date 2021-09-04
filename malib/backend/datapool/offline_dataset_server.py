@@ -1,31 +1,27 @@
 from collections import namedtuple
+from inspect import indentsize
 import logging
 import os
 import sys
+from test import Logger
 import traceback
 import threading
 import time
-import traceback
-from typing import Dict, List, Any, Type, Union, Sequence
-
-import numpy as np
-from numpy.core.fromnumeric import trace
 import ray
+import traceback
+import pickle as pkl
+import numpy as np
 
-from typing import Dict, List, Any, Union, Sequence, Tuple
 from concurrent.futures import ThreadPoolExecutor
+from ray.util import queue
 from readerwriterlock import rwlock
 
 from malib import settings
 from malib.backend.datapool.data_array import NumpyDataArray
 from malib.utils.errors import OversampleError, NoEnoughDataError
-from malib.utils.typing import BufferDescription, PolicyID, AgentID, Status
+from malib.utils.typing import BufferDescription, PolicyID, AgentID, Status, Dict, List, Any, Union, Sequence, Tuple
 from malib.utils.logger import get_logger, Log
-from malib.utils.logger import get_logger
-from malib.utils.typing import BufferDescription, PolicyID, AgentID
 
-import threading
-import pickle as pkl
 
 
 def _gen_table_name(env_id, main_id, pid):
@@ -227,18 +223,13 @@ class Episode:
         self._size = len(self._data[Episode.CUR_OBS])
         self._capacity = max(self._size, self._capacity)
 
-    def insert(self, **kwargs):
-        # for column in self.columns:
-        #     assert self._size == len(self._data[column]), (
-        #         self._size,
-        #         {c: len(self._data[c]) for c in self.columns},
-        #     )
+    def insert(self, indices, **kwargs):
         for column in self.columns:
             if isinstance(kwargs[column], NumpyDataArray):
                 assert kwargs[column]._data is not None, f"{column} has empty data"
-                self._data[column].insert(kwargs[column].get_data())
+                self._data[column][indices] = kwargs[column].get_data()
             else:
-                self._data[column].insert(kwargs[column])
+                self._data[column][indices] = kwargs[column]
         self._size = len(self._data[Episode.CUR_OBS])
 
     def sample(self, idxes=None, size=None) -> Any:
@@ -325,7 +316,7 @@ class MultiAgentEpisode(Episode):
         assert len(_sizes) == 1, f"Multiple size is not allowed: {_sizes}"
         self._size = _sizes.pop()
 
-    def insert(self, **kwargs):
+    def insert(self, indices, **kwargs):
         """ Format: {agent: {column: np.array, ...}, ...} """
         _selected = list(kwargs.values())[0]
         if isinstance(_selected, Episode):
@@ -339,10 +330,10 @@ class MultiAgentEpisode(Episode):
                 assert (
                     _size == kwargs[agent].size
                 ), f"Inconsistency of inserted episodes, expect {_size} while actual {episode.size}"
-                episode.insert(**kwargs[agent].data)
+                episode.insert(indices, **kwargs[agent].data)
             else:
                 assert _size == len(list(kwargs[agent].values())[0])
-                episode.insert(**kwargs[agent])
+                episode.insert(indices, **kwargs[agent])
             self._size = episode.size
 
     def sample(self, idxes=None, size=None):
@@ -399,10 +390,24 @@ class Table:
         self._rwlock = rwlock.RWLockFairD()
         self._episode: Union[Episode, MultiAgentEpisode] = None
         self._is_multi_agent = multi_agent
+        self._consumer_queue = queue.Queue()
+        self._producer_queue = queue.Queue()
+        self._is_fixed = False
 
     @property
     def name(self):
         return self._name
+
+    @property
+    def is_fixed(self):
+        return self._is_fixed
+
+    def make_table_fixed(self):
+        """Free resources and fixed table do not accept any new data"""
+
+        self._consumer_queue.shutdown()
+        self._producer_queue.shutdown()
+        self._is_fixed = True
 
     @property
     def is_multi_agent(self) -> bool:
@@ -444,28 +449,48 @@ class Table:
                     capacity=capacity,
                     other_columns=_episode.other_columns,
                 )
+            # !!!!!!!!!!!!!!!!!!!!!!!!!!
+            self._producer_queue.put_nowait_batch([i for i in range(capacity)])
 
     @staticmethod
     def gen_table_name(*args, **kwargs):
         return DATASET_TABLE_NAME_GEN(*args, **kwargs)
 
     def fill(self, **kwargs):
-        with self._rwlock.gen_wlock():
-            self._episode.fill(**kwargs)
+        # with self._rwlock.gen_wlock():
+        self._episode.fill(**kwargs)
 
-    def insert(self, **kwargs):
+    def insert(self, indices, **kwargs):
         try:
-            with self._rwlock.gen_wlock():
-                if not self._is_multi_agent:
-                    assert len(kwargs) == 1, kwargs
-                    kwargs = list(kwargs.values())[0].data
-                self._episode.insert(**kwargs)
+        #     with self._rwlock.gen_wlock():
+            if not self._is_multi_agent:
+                assert len(kwargs) == 1, kwargs
+                kwargs = list(kwargs.values())[0].data
+            self._episode.insert(indices, **kwargs)
         except Exception as e:
             print(traceback.format_exc())
 
+    def request_producer_index(self, request_buffer_size: int):
+        if self._producer_queue.size() < request_buffer_size:
+            return None
+        indices = self._producer_queue.get_nowait_batch(request_buffer_size)
+        return indices
+
+    def free_producer_index(self, indices: List[int]):
+        self._producer_queue.put_nowait_batch(indices)
+
+    def request_consumer_index(self, request_buffer_size: int):
+        if self._consumer_queue.size() < request_buffer_size:
+            return None
+        indices = self._consumer_queue.get_nowait_batch(request_buffer_size)
+        return indices
+
+    def free_consumer_index(self, indices: List[int]):
+        self._consumer_queue.put_nowait_batch(indices)
+
     def sample(self, idxes=None, size=None) -> Tuple[Any, str]:
-        with self._rwlock.gen_rlock():
-            data = self._episode.sample(idxes, size)
+        # with self._rwlock.gen_rlock():
+        data = self._episode.sample(idxes, size)
         return data
 
     def lock_push_pull(self, lock_type):
@@ -646,7 +671,7 @@ class OfflineDataset:
         self._learning_start = dataset_config.get("learning_start", 64)
         self._tables: Dict[str, Table] = dict()
         self._threading_lock = threading.Lock()
-        self._threading_pool = ThreadPoolExecutor()
+        # self._threading_pool = ThreadPoolExecutor()
         self.logger = get_logger(
             log_level=settings.LOG_LEVEL,
             log_dir=settings.LOG_DIR,
@@ -688,6 +713,20 @@ class OfflineDataset:
         quit_job_config = dataset_config.get("quit_job", {})
         self.dump_when_closed = quit_job_config.get("dump_when_closed")
         self.dump_path = quit_job_config.get("path")
+
+    def request_producer_index(self, desc: BufferDescription):
+        name = Table.gen_table_name(desc.env_id, desc.agent_id, desc.policy_id)
+        self.check_table(name, None, is_multi_agent=len(desc.agent_id) > 1)
+        buffer_size = desc.batch_size
+        table = self._tables[name]
+        return Batch(desc.identify, table.get_producer_index(buffer_size))
+
+    def free_producer_index(self, desc: BufferDescription):
+        name = Table.gen_table_name(desc.env_id, desc.agent_id, desc.policy_id)
+        self.check_table(name, None, is_multi_agent=len(desc.agent_id) > 1)
+        buffer_size = desc.batch_size
+        table = self._tables[name]
+        return Batch(desc.identify, table.free_producer_index(buffer_size))
 
     def lock(self, lock_type: str, desc: Dict[AgentID, BufferDescription]) -> str:
         """Lock table ready to push or pull and return the table status."""
@@ -733,41 +772,38 @@ class OfflineDataset:
         :param str table_name: Registered table name, to index table.
         :param Episode episode: Episode to insert. Default to None.
         """
-        with self._threading_lock:
-            if self._tables.get(table_name, None) is None:
-                self._tables[table_name] = Table(table_name, multi_agent=is_multi_agent)
-            if episode is not None and self._tables[table_name].episode is None:
-                self._tables[table_name].set_episode(
-                    episode, capacity=self._episode_capacity
-                )
-
-    def save(self, agent_episodes: Dict[AgentID, Episode], wait_for_ready: bool = True):
-        """Accept a dictionary of agent episodes, save them to a named table. If there is only one agent episode
-        in the dict, we use `Episode`, otherwise `MultiAgentEpisode` will be used.
-        """
-
-        insert_results = []
-        env_id = list(agent_episodes.values())[0].env_id
-        main_ids = sorted(list(agent_episodes.keys()))
-        table_name = Table.gen_table_name(
-            env_id=env_id,
-            main_id=main_ids,
-            pid=[agent_episodes[aid].policy_id for aid in main_ids],
-        )
-        self.check_table(
-            table_name, agent_episodes, is_multi_agent=len(agent_episodes) > 1
-        )
-        insert_results.append(
-            self._threading_pool.submit(
-                self._tables[table_name].insert, **agent_episodes
+        # with self._threading_lock:
+        if self._tables.get(table_name, None) is None:
+            self._tables[table_name] = Table(table_name, multi_agent=is_multi_agent)
+        if episode is not None and self._tables[table_name].episode is None:
+            self._tables[table_name].set_episode(
+                episode, capacity=self._episode_capacity
             )
-        )
-        self.logger.debug(f"Threads created for insertion on table={table_name}")
 
-        if wait_for_ready:
-            for fut in insert_results:
-                while not fut.done():
-                    pass
+    def save(self, desc: BufferDescription):
+        table_name = Table.gen_table_name(desc.env_id, desc.agent_id, desc.policy_id)
+        self.check_table(table_name, desc.data, is_multi_agent=len(desc.agent_id))
+        # data could be {agent: batch} or {bath.key: batch.value}
+        table = self._tables[table_name]
+        table.insert(desc.indices, **desc.data)
+        # free producer indicies
+        table.free_producer_index(desc.indices)
+
+    def sample(self, buffer_desc: BufferDescription):
+        name = Table.gen_table_name(buffer_desc.env_id, buffer_desc.agent_id, buffer_desc.policy_id)
+        try:
+            table = self._tables[name]
+            indices = table.get_consumer_index(buffer_desc.batch_size)
+            if indices is not None:
+                data = table.sample(indices)
+                table.free_consumer_index(indices)
+            else:
+                data = None
+                Logger.warning("table (%s) has no enough consumer index yet", name)
+        except KeyError as e:
+            Logger.warning("table (%s) has not been created yet", name)
+
+        return Batch(identify=buffer_desc.identify, data=data)
 
     @Log.method_timer(enable=settings.PROFILING)
     def load_from_dataset(
@@ -871,53 +907,6 @@ class OfflineDataset:
                 self._tables[tn].unlock_push_pull("push")
             f.close()
             return status
-
-    # @Log.method_timer(enable=settings.PROFILING)
-    def sample(self, buffer_desc: BufferDescription) -> Tuple[Batch, str]:
-        """Sample data from the top for training, default is random sample from sub batches.
-
-        :param BufferDesc buffer_desc: Description of sampling a buffer.
-            used to index the buffer slot
-        :return: a tuple of samples and information
-        """
-
-        # generate idxes from idxes manager
-        info = "OK"
-        try:
-            res = {}
-            # with Log.timer(log=settings.PROFILING, logger=self.logger):
-            table_name = Table.gen_table_name(
-                env_id=buffer_desc.env_id,
-                main_id=buffer_desc.agent_id,
-                pid=buffer_desc.policy_id,
-            )
-            table = self._tables[table_name]
-            res = table.sample(size=buffer_desc.batch_size)
-            # convert to agent dict
-            if not table.is_multi_agent:
-                res = {buffer_desc.agent_id: res}
-        except KeyError as e:
-            info = f"data table `{table_name}` has not been created {list(self._tables.keys())}"
-            res = None
-        except OversampleError as e:
-            info = f"No enough data: table_size={table.size} batch_size={buffer_desc.batch_size} table_name={table_name}"
-            res = None
-        except Exception as e:
-            print(traceback.format_exc())
-            res = None
-            info = "others"
-
-        if len(self.external_proxy) > 0:
-            external_res = []
-            for dataset in self.external_proxy:
-                tmp_res, tmp_info = dataset.sample(buffer_desc)
-                external_res.append(tmp_res)
-                info += "\n" + tmp_info
-            # XXX(ming): inconsistency of data type, sampled from dataset is a dict, while external_res is a list.
-            #   it is better to use dict for external_res
-            res = [res] + external_res
-        res = Batch(identify=buffer_desc.identify, data=res)
-        return res, info
 
     def shutdown(self):
         status = None

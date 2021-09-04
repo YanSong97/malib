@@ -158,6 +158,8 @@ class BufferDescription:
     batch_size: int = 0
     sample_mode: str = ""
     identify: str = None
+    indices: List[int] = None
+    data: Any = None
 
     def __post_init__(self):
         if self.identify is None:

@@ -319,7 +319,7 @@ class AgentInterface(metaclass=ABCMeta):
             while len(tasks) > 0:
                 dones, tasks = ray.wait(tasks)
                 for done in dones:
-                    batch, info = ray.get(done)
+                    batch = ray.get(done)
                     if batch.data is None:
                         # push task
                         tasks.append(
@@ -332,7 +332,7 @@ class AgentInterface(metaclass=ABCMeta):
                         res.update(batch.data)
         else:
             while True:
-                batch, info = ray.get(self._offline_dataset.sample.remote(buffer_desc))
+                batch = ray.get(self._offline_dataset.sample.remote(buffer_desc))
                 if batch.data is None:
                     continue
                 else:
