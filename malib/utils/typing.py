@@ -157,6 +157,11 @@ class BufferDescription:
     policy_id: Union[PolicyID, List[AgentID]]
     batch_size: int = 0
     sample_mode: str = ""
+    indexes: List[int] = None
+    data: Any = None
+    data_shapes: Dict[str, Tuple] = None
+    sample_start_size: int = 0
+    capacity: int = 1000
 
 
 @dataclass
