@@ -197,7 +197,7 @@ class RolloutWorker(BaseRolloutWorker):
         num_frames, stats_list = 0, []
         for ret in rets:
             # we save only evaluation ret[0] from evaluation workers
-            if ret[0] in ["evaluation", "simulation"]:
+            if ret[0] in ["rollout", "simulation"]:
                 stats_list.append(ret[1])
             if ret[0] == "rollout":
                 num_frames += ret[2]

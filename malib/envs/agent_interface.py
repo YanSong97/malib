@@ -135,7 +135,7 @@ class AgentInterface:
         for pid in distribution:
             assert pid in self.policies, (pid, list(self.policies.keys()))
 
-        self.sample_dist = dict.fromkeys(self.policies, 1.0 / len(self.policies))
+        self.sample_dist = dict.fromkeys(self.policies, 0.0)
         self.sample_dist.update(distribution)
 
     def set_behavior_mode(
@@ -152,10 +152,13 @@ class AgentInterface:
     def reset(self, sample_dist=None) -> None:
         """Reset agent interface."""
         # clear sample distribution
-        self.sample_dist = sample_dist or dict.fromkeys(
-            self.policies, 1.0 / len(self.policies)
-        )
-        self._behavior_policy = self._random_select_policy()
+        # self.sample_dist = sample_dist or dict.fromkeys(
+        #     self.policies, 1.0 / len(self.policies)
+        # )
+        if sample_dist is not None:
+            self.sample_dist = sample_dist
+        if len(self.sample_dist) > 0:
+            self._behavior_policy = self._random_select_policy()
 
     def add_policy(
         self,
@@ -209,7 +212,7 @@ class AgentInterface:
         """
         policy_id = kwargs.get("policy_id", None)
         if policy_id is None:
-            policy_id = self._random_select_policy()
+            policy_id = self.behavior_policy  # self._random_select_policy()
         kwargs.update({"behavior_mode": self.behavior_mode})
         return self.policies[policy_id].compute_action(*args, **kwargs)
 

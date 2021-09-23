@@ -97,6 +97,8 @@ def sequential(
         [agent_total_cnt < fragment_length for agent_total_cnt in total_cnt.values()]
     ):
         env.reset()
+        # reset agent
+        _ = [agent.reset() for agent in agent_interfaces.values()]
         cnt = collections.defaultdict(lambda: 0)
         tmp_buffer = collections.defaultdict(list)
         episode_reward = collections.defaultdict(lambda: 0.0)
@@ -193,15 +195,23 @@ def sequential(
             e.reset()
 
     results = {
-        f"total_reward/{k}": v
+        f"total_reward/{behavior_policies[k]}/{k}": v
         for k, v in mean_episode_reward.items()
         if k in agent_filters
     }
     results.update(
-        {f"step_cnt/{k}": v for k, v in mean_episode_len.items() if k in agent_filters}
+        {
+            f"step_cnt/{behavior_policies[k]}/{k}": v
+            for k, v in mean_episode_len.items()
+            if k in agent_filters
+        }
     )
     results.update(
-        {f"win_rate/{k}": v for k, v in win_rate.items() if k in agent_filters}
+        {
+            f"win_rate/{behavior_policies[k]}/{k}": v
+            for k, v in win_rate.items()
+            if k in agent_filters
+        }
     )
 
     # aggregated evaluated results groupped in agent wise
@@ -374,6 +384,7 @@ class Stepping:
         policy_distribution = desc.get("policy_distribution")
         for agent, interface in agent_interfaces.items():
             if policy_distribution:
+                # assert sum(policy_distribution[agent].values()) == 1., (list(policy_distribution[agent].values()), sum(policy_distribution[agent].values()))
                 interface.reset(policy_distribution[agent])
             behavior_policies[agent] = interface.behavior_policy
 
