@@ -219,7 +219,7 @@ class BaseRolloutWorker:
                                 time_stamp=time.time(),
                                 identify=aid,
                                 lock=False,
-                                env_id=self._env_description["id"],
+                                env_id=self._env_description["config"]["env_id"],
                                 description=description,
                                 id=pid,
                             )
