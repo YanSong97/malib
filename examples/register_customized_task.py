@@ -15,30 +15,29 @@ from malib.envs import MPE
 from malib.runner import run
 from malib.utils.typing import PolicyID
 
-# from malib.utils.tasks_register import task_handler_register, register_task_type
+from malib.utils.tasks_register import task_register
 from malib.backend.coordinator.server import CoordinatorServer
 
-
-@CoordinatorServer.task_handler_register
+@task_register(CoordinatorServer)
 def pre_launching(self, init_config=None):
-    assert hasattr(self, load_model)
-    assert hasattr(self, save_model)
-    assert hasattr(self, load_model)
+    assert hasattr(self, "load_model")
+    assert hasattr(self, "save_model")
+    assert hasattr(self, "load_model")
 
 
-@CoordinatorServer.task_handler_register
+@task_register(CoordinatorServer)
 def load_model(self, checkpoint_path):
     print("Customize loading model")
     self._training_manager.load(checkpoint_path)
 
 
-@CoordinatorServer.task_handler_register
+@task_register(CoordinatorServer)
 def save_model(self, pid: PolicyID = None):
     print("Customize saving model")
     self._training_manager.dump(pid)
 
 
-@CoordinatorServer.task_handler_register
+@task_register(CoordinatorServer)
 def load_data(self, data_path):
     print("Customize loading data")
     self._offline_data_server.load(data_path)

@@ -10,24 +10,21 @@
 # -----
 
 import enum
+from collections import defaultdict
 from functools import wraps
 from malib.backend.coordinator.server import CoordinatorServer
 from malib.utils.typing import TaskType, Dict
 from malib.utils.errors import RegisterFailure
 
+import cloudpickle as pkl
+runtime_envs = defaultdict(lambda: [])
+def task_register(target_class):
+    def wrapper(function):
+        global runtime_envs
+        runtime_envs[target_class.__class__.__name__].append(pkl.dumps(function))
+        return function
+    return wrapper
 
-def task_handler_register():
-    print("Registering")
-
-    def decorator(func):
-        @wraps(func)
-        def wrapper(self, *args, **kwargs):
-            return func(*args, **kwargs)
-
-        setattr(CoordinatorServer, func.__name__, func)
-        return func
-
-    return decorator
 
 
 RESERVED_TASK_NAMES = []

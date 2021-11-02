@@ -10,7 +10,7 @@ from malib import settings
 from malib.utils import logger
 from malib.utils.logger import get_logger, Log
 from malib.utils.configs.formatter import DefaultConfigFormatter
-
+from malib.utils.tasks_register import runtime_envs
 
 def update_configs(update_dict, ori_dict=None):
     """ Update global configs with a given dict """
@@ -81,7 +81,7 @@ def run(**kwargs):
 
         coordinator_server = CoordinatorServer.options(
             name=settings.COORDINATOR_SERVER_ACTOR, max_concurrency=100
-        ).remote(exp_cfg=exp_cfg, **global_configs)
+        ).remote(exp_cfg=exp_cfg, **global_configs, runtime_env=runtime_envs[CoordinatorServer.__class__.__name__])
 
         _ = ray.get(coordinator_server.start.remote())
 

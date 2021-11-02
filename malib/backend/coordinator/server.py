@@ -8,9 +8,9 @@ import threading
 
 import copy
 from typing import List, Dict
-
+import types
 import ray
-
+import os
 from malib import settings
 from malib.utils.formatter import pretty_print as pp
 from malib.utils.typing import (
@@ -32,7 +32,7 @@ from malib.manager.rollout_worker_manager import RolloutWorkerManager
 from malib.manager.training_manager import TrainingManager
 from malib.evaluator.utils.payoff_manager import PayoffManager
 from malib.backend.coordinator.base_coordinator import BaseCoordinator
-
+import cloudpickle as pkl
 
 @ray.remote
 class CoordinatorServer(BaseCoordinator):
@@ -86,6 +86,15 @@ class CoordinatorServer(BaseCoordinator):
             **kwargs["exp_cfg"],
         )
 
+        runtime_ref = kwargs.get("runtime_env")
+        # print(">>>>>>>>>>>>>>>>>", runtime_ref)
+        for attr in runtime_ref:
+            obj = pkl.loads(attr)
+            print(obj)
+            setattr(self, obj.__name__, types.MethodType(obj, self))
+        print(dir(self))
+
+
     def start(self):
         self._training_manager = TrainingManager(
             algorithms=self._configs["algorithms"],
@@ -104,38 +113,42 @@ class CoordinatorServer(BaseCoordinator):
             env_desc=self._configs["env_description"],
             exp_cfg=self._exp_cfg,
         )
+        print("=======start========", f"pid: {os.getpid()} , mem: ", id(self.__class__))
+        print(getattr(self, "pre_launching"))
         self._training_manager.init()
 
         self._logger.info("Coordinator server started")
 
-    def pre_launching(self, init_config):
-        # if init_config["load_model"]:
-        #     self.request(
-        #         TaskRequest(
-        #             task_type=TaskType.LOAD_MODEL,
-        #             content=init_config["model_path"],
-        #         )
-        #     )
-        #     self.request(
-        #         Tasks
-        #     )
-        pass
+    # def pre_launching(self, init_config):
+    #     # if init_config["load_model"]:
+    #     #     self.request(
+    #     #         TaskRequest(
+    #     #             task_type=TaskType.LOAD_MODEL,
+    #     #             content=init_config["model_path"],
+    #     #         )
+    #     #     )
+    #     #     self.request(
+    #     #         Tasks
+    #     #     )
+    #     pass
 
     @staticmethod
-    def task_handler_register(cls):
+    def task_handler_register(func):
         from functools import wraps
 
-        print("Registering")
-
-        def decorator(func):
-            @wraps(func)
-            def wrapper(self, *args, **kwargs):
-                return func(*args, **kwargs)
-
-            setattr(cls, func.__name__, func)
-            return func
-
-        return decorator
+        print(f"Registering {func.__name__}")
+        setattr(CoordinatorServer, func.__name__, func)
+        print("+++", dir(CoordinatorServer))
+        print("=======register========", f"pid: {os.getpid()} , mem: ", id(CoordinatorServer))
+        # def decorator(func):
+        #     @wraps(func)
+        #     def wrapper(self, *args, **kwargs):
+        #         return func(*args, **kwargs)
+        #
+        #     setattr(cls, func.__name__, func)
+        #     return func
+        #
+        # return decorator
 
     def request(self, task_request: TaskRequest):
         """ Handling task request """
