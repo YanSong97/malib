@@ -41,11 +41,6 @@ def run(**kwargs):
 
     infos = DefaultConfigFormatter.parse(global_configs)
 
-    exp_cfg = logger.start(
-        group=global_configs.get("group", "experiment"),
-        name=global_configs.get("name", "case") + f"_{time.time()}",
-    )
-
     try:
         from malib.backend.coordinator.task import CoordinatorServer
         from malib.backend.datapool.offline_dataset_server import OfflineDataset
@@ -58,7 +53,15 @@ def run(**kwargs):
         )
         # pprint.pprint(f"Logged experiment information:{infos}", indent=2)
 
-        ray.init(local_mode=False)
+        cluster_start_info = ray.init(address="auto")
+
+        print("cluster resources:\n{}".format(cluster_start_info))
+
+        exp_cfg = logger.start(
+            group=global_configs.get("group", "experiment"),
+            name=global_configs.get("name", "case") + f"_{time.time()}",
+            host=cluster_start_info["node_ip_address"],
+        )
 
         offline_dataset = OfflineDataset.options(
             name=settings.OFFLINE_DATASET_ACTOR, max_concurrency=1000
@@ -78,11 +81,10 @@ def run(**kwargs):
 
         performance_logger = get_logger(
             name="performance",
-            expr_group=exp_cfg["expr_group"],
-            expr_name=exp_cfg["expr_name"],
             remote=settings.USE_REMOTE_LOGGER,
             mongo=settings.USE_MONGO_LOGGER,
             info=infos,
+            **exp_cfg,
         )
 
         with Log.timer(
