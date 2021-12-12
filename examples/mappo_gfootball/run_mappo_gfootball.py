@@ -47,7 +47,7 @@ if __name__ == "__main__":
     ]
 
     evaluation_config = config["evaluation"]
-    env_desc = env_desc_gen(DEFAULT_ENV_CONNFIG)
+    env_desc = env_desc_gen(config["env_description"]["config"])
 
     training_config["interface"]["observation_spaces"] = env_desc["observation_spaces"]
     training_config["interface"]["action_spaces"] = env_desc["action_spaces"]

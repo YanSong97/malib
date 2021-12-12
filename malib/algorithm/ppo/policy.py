@@ -80,7 +80,6 @@ class PPO(Policy):
                 m = Normal(*logits)
                 pi = torch.cat(logits, dim=-1)
                 actions = m.sample().detach()
-        # print(f"------ action: {pi.argmax(-1).numpy()} {pi.numpy()}")
         return actions.numpy(), pi.numpy(), {EpisodeKey.ACTION_DIST: pi.numpy()}
 
     def compute_actions(self, observation, **kwargs):

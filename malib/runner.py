@@ -53,9 +53,18 @@ def run(**kwargs):
         )
         # pprint.pprint(f"Logged experiment information:{infos}", indent=2)
 
-        cluster_start_info = ray.init(address="auto")
+        try:
+            cluster_start_info = ray.init(address="auto")
+        except ConnectionError:
+            Logger.warning(
+                "No active cluster detected, will create local ray instance."
+            )
+            cluster_start_info = ray.init()
 
-        print("cluster resources:\n{}".format(cluster_start_info))
+        print(
+            "============== Cluster Info ==============\n{}".format(cluster_start_info)
+        )
+        print("* cluster resources:\n{}".format(ray.cluster_resources()))
 
         exp_cfg = logger.start(
             group=global_configs.get("group", "experiment"),

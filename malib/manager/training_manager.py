@@ -86,6 +86,7 @@ class TrainingManager:
                         use_init_policy_pool=interface_config["use_init_policy_pool"],
                         population_size=interface_config["population_size"],
                         algorithm_mapping=interface_config["algorithm_mapping"],
+                        local_buffer_config=interface_config["local_buffer_config"],
                     )
                 # register trainable env agents
                 self._agents[training_aid].register_env_agent.remote(env_aid)
